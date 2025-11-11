@@ -25,17 +25,23 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Test database connection
-async function testConnection() {
+// Test database connection and sync
+async function initializeDatabase() {
     try {
         await db.authenticate();
         console.log('Connection to database established successfully.');
+        
+        // Sync database without forcing (to preserve data)
+        const forceSync = process.env.FORCE_SYNC === 'true';
+        await db.sync({ force: forceSync });
+        console.log(`Database synchronized. Force sync: ${forceSync}`);
     } catch (error) {
         console.error('Unable to connect to the database:', error);
+        process.exit(1); // Exit if database connection fails
     }
 }
 
-testConnection();
+initializeDatabase();
 
 // === ROUTES === (NOTE: requireAuth to be added to all endpoints except root and /health)
 
@@ -391,7 +397,7 @@ app.use((req, res) => {
 // Only start the server if not in test mode
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`Menu API server running at http://localhost:${PORT}`);
+    console.log(`D&D Campaign API server running at http://localhost:${PORT}`);
   });
 }
 

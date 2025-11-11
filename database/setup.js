@@ -2,11 +2,17 @@ const { Sequelize, DataTypes } = require('sequelize');
 require('dotenv').config();
 
 // Create Sequelize instance
+const path = require('path');
+const dbName = process.env.DB_NAME || 'campaign_management.db';
+const storagePath = path.resolve(__dirname, dbName); // Absolute path
+
 const db = new Sequelize({
-  dialect: 'sqlite',
-  storage: `database/${process.env.DB_NAME}` || 'database/campaign_management.db',
-  logging: console.log
+    dialect: 'sqlite',
+    storage: storagePath,
+    logging: false
 });
+
+console.log(`Using SQLite database at: ${storagePath}`);
 
 // Define Campaign model
 const Campaign = db.define('Campaign', {
@@ -38,7 +44,7 @@ const CampaignPlayer = db.define('CampaignPlayer', {
 
 // Define User model
 const User = db.define('User', {
-        username: {
+    username: {
         type: DataTypes.STRING,
         allowNull: false,
         unique: true,
@@ -117,12 +123,15 @@ async function setupDatabase() {
         await db.authenticate();
         console.log('Connection to database established successfully.');
         
-        await db.sync({ force: true });
-        console.log('Database and tables created successfully.');
+        // Use environment variable to control force sync
+        const forceSync = process.env.FORCE_SYNC === 'true';
+        await db.sync({ force: forceSync });
+        console.log(`Database sync completed. Force sync: ${forceSync}`);
         
-        await db.close();
+        // Don't close the connection here - let the calling code manage it
     } catch (error) {
         console.error('Unable to connect to the database:', error);
+        throw error; // Re-throw to let calling code handle it
     }
 }
 

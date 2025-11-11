@@ -1,5 +1,5 @@
 // seed.js
-const { db, User, Campaign, Character, Session } = require('./database/setup');
+const { db, User, Campaign, Character, Session } = require('./setup');
 const bcrypt = require('bcryptjs');
 
 async function seedDatabase() {
@@ -7,7 +7,9 @@ async function seedDatabase() {
     await db.authenticate();
     console.log('Connected to database for seeding.');
     
-    await db.sync({ force: true }); // Safely resets tables
+    // Sync the database to create tables
+    await db.sync({ force: true });
+    console.log('Database tables created successfully.');
 
     // === SAMPLE USERS ===
     const users = [
