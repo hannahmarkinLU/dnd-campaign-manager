@@ -63,6 +63,8 @@ app.get('/', (req, res) => {
     description: 'A RESTful API for managing Dungeons & Dragons campaigns, characters, and sessions.',
     endpoints: {
       health: 'GET /health',
+        register: 'POST /api/register',
+            login: 'POST /api/login',
 
       // Campaign endpoints
       getAllCampaigns: 'GET /api/campaigns',

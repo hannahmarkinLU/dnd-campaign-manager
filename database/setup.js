@@ -128,7 +128,7 @@ async function setupDatabase() {
         await db.sync({ force: forceSync });
         console.log(`Database sync completed. Force sync: ${forceSync}`);
         
-        // Don't close the connection here - let the calling code manage it
+        // Let the calling code manage the connection
     } catch (error) {
         console.error('Unable to connect to the database:', error);
         throw error; // Re-throw to let calling code handle it
