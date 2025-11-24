@@ -17,11 +17,20 @@ app.use((req, res, next) => {
     next();
 });
 
-// Error handler
+// Error handling middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(err.status || 500).json({
-        error: err.message || 'Internal Server Error'
+    console.error('Unhandled error:', err);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ 
+        error: 'Endpoint not found',
+        message: `${req.method} ${req.path} is not a valid endpoint`
     });
 });
 
@@ -375,23 +384,6 @@ app.delete('/api/sessions/:id', async (req, res) => {
         console.error('Error deleting session:', error);
         res.status(500).json({ error: 'Failed to delete session' });
     }
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error('Unhandled error:', err);
-    res.status(500).json({ 
-        error: 'Internal server error',
-        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-    });
-});
-
-// 404 handler
-app.use((req, res) => {
-    res.status(404).json({ 
-        error: 'Endpoint not found',
-        message: `${req.method} ${req.path} is not a valid endpoint`
-    });
 });
 
 // === START SERVER ===
