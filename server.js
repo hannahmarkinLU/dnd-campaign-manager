@@ -1,15 +1,13 @@
+require('dotenv').config();
 const express = require('express');
-const { db, Campaign, User, Character, Session } = require('./database/setup');
+const { db } = require('./database/setup');
 const cors = require('cors');
+const { requireAuth, requireRole } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // === MIDDLEWARE ===
-
-// Basic middleware
-app.use(express.json());
-app.use(cors());
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -17,22 +15,9 @@ app.use((req, res, next) => {
     next();
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error('Unhandled error:', err);
-    res.status(500).json({ 
-        error: 'Internal server error',
-        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-    });
-});
-
-// 404 handler
-app.use((req, res) => {
-    res.status(404).json({ 
-        error: 'Endpoint not found',
-        message: `${req.method} ${req.path} is not a valid endpoint`
-    });
-});
+// Basic middleware
+app.use(express.json());
+app.use(cors());
 
 // Test database connection and sync
 async function initializeDatabase() {
@@ -42,17 +27,30 @@ async function initializeDatabase() {
         
         // Sync database without forcing (to preserve data)
         const forceSync = process.env.FORCE_SYNC === 'true';
-        await db.sync({ force: forceSync });
-        console.log(`Database synchronized. Force sync: ${forceSync}`);
+        if (process.env.NODE_ENV !== "test") {
+          await db.sync({ force: false });
+          console.log("Database synchronized. Force sync: false");
+        }
     } catch (error) {
         console.error('Unable to connect to the database:', error);
         process.exit(1); // Exit if database connection fails
     }
 }
-
 initializeDatabase();
 
-// === ROUTES === (NOTE: requireAuth to be added to all endpoints except root and /health)
+// === ROUTES ===
+
+// Import route modules
+const authRoutes = require("./routes/auth");
+const campaignRoutes = require("./routes/campaigns");
+const characterRoutes = require("./routes/characters");
+const sessionRoutes = require("./routes/sessions");
+
+// Mount route modules
+app.use("/api/auth", authRoutes);
+app.use("/api/campaigns", campaignRoutes);
+app.use("/api/characters", characterRoutes);
+app.use("/api/sessions", sessionRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -72,8 +70,8 @@ app.get('/', (req, res) => {
     description: 'A RESTful API for managing Dungeons & Dragons campaigns, characters, and sessions.',
     endpoints: {
       health: 'GET /health',
-        register: 'POST /api/register',
-            login: 'POST /api/login',
+        register: 'POST /api/auth/register',
+            login: 'POST /api/auth/login',
 
       // Campaign endpoints
       getAllCampaigns: 'GET /api/campaigns',
@@ -99,291 +97,23 @@ app.get('/', (req, res) => {
   });
 });
 
-// === AUTHENTICATION ROUTES ===
+// === ERROR HANDLING ===
 
-// POST /api/register - Register new user
-
-// POST /api/login - User login
-
-// === CAMPAIGN ROUTES ===
-
-// GET /api/campaigns - Get all campaigns
-app.get('/api/campaigns', async (req, res) => {
-    try {
-        const campaigns = await Campaign.findAll();
-        res.json(campaigns);
-    } catch (error) {
-        console.error('Error fetching campaigns:', error);
-        res.status(500).json({ error: 'Failed to fetch campaigns' });
-    }
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ 
+        error: 'Endpoint not found',
+        message: `${req.method} ${req.path} is not a valid endpoint`
+    });
 });
 
-// GET /api/campaigns/:id - Get campaign by ID
-app.get('/api/campaigns/:id', async (req, res) => {
-    try {
-        const campaign = await Campaign.findByPk(req.params.id, {
-            include: ['characters', 'sessions', { model: User, as: 'dm' }]
-        });
-        
-        if (!campaign) {
-            return res.status(404).json({ error: 'Campaign not found' });
-        }
-        
-        res.json(campaign);
-    } catch (error) {
-        console.error('Error fetching campaign:', error);
-        res.status(500).json({ error: 'Failed to fetch campaign' });
-    }
-});
-
-// POST /api/campaigns - Create new campaign (NOTE: requireDM to be added)
-app.post('/api/campaigns', async (req, res) => {
-    try {
-        const { title, description } = req.body;
-        const dmId = req.session?.userId || req.body.dmId;
-
-        if (!title || !description || !dmId) {
-            return res.status(400).json({ error: 'All fields are required' });
-        }
-        
-        const newCampaign = await Campaign.create({
-            title,
-            description,
-            dmId
-        });
-        
-        res.status(201).json(newCampaign);
-    } catch (error) {
-        console.error('Error creating campaign:', error);
-        res.status(500).json({ error: 'Failed to create campaign' });
-    }
-});
-
-// PUT /api/campaigns/:id - Update existing campaign (NOTE: requireDM to be added)
-app.put('/api/campaigns/:id', async (req, res) => {
-    try {
-        const { title, description } = req.body;
-        
-        const [updatedRowsCount] = await Campaign.update(
-            { title, description },
-            { where: { id: req.params.id } }
-        );
-        
-        if (updatedRowsCount === 0) {
-            return res.status(404).json({ error: 'Campaign not found' });
-        }
-
-        const updatedCampaign = await Campaign.findByPk(req.params.id);
-        res.json(updatedCampaign);
-    } catch (error) {
-        console.error('Error updating campaign:', error);
-        res.status(500).json({ error: 'Failed to update campaign' });
-    }
-});
-
-// DELETE /api/campaigns/:id - Delete campaign (NOTE: requireDM to be added)
-app.delete('/api/campaigns/:id', async (req, res) => {
-    try {
-        const deletedRowsCount = await Campaign.destroy({
-            where: { id: req.params.id }
-        });
-        
-        if (deletedRowsCount === 0) {
-            return res.status(404).json({ error: 'Campaign not found' });
-        }
-        
-        res.json({ message: 'Campaign deleted successfully' });
-    } catch (error) {
-        console.error('Error deleting campaign:', error);
-        res.status(500).json({ error: 'Failed to delete campaign' });
-    }
-});
-
-// === CHARACTER ROUTES ===
-
-// GET /api/characters - Get all characters
-app.get('/api/characters', async (req, res) => {
-    try {
-        const characters = await Character.findAll();
-        res.json(characters);
-    } catch (error) {
-        console.error('Error fetching characters:', error);
-        res.status(500).json({ error: 'Failed to fetch characters' });
-    }
-});
-
-// GET /api/characters/:id - Get character by ID
-app.get('/api/characters/:id', async (req, res) => {
-    try {
-        const character = await Character.findByPk(req.params.id);
-        
-        if (!character) {
-            return res.status(404).json({ error: 'Character not found' });
-        }
-        
-        res.json(character);
-    } catch (error) {
-        console.error('Error fetching character:', error);
-        res.status(500).json({ error: 'Failed to fetch character' });
-    }
-});
-
-// POST /api/characters - Create new character
-app.post('/api/characters', async (req, res) => {
-    try {
-        const { name, characterClass, level, race, campaignId } = req.body;
-        const userId = req.session.userId;
-        
-        if (!name || !characterClass || !level || !race || !campaignId) {
-            return res.status(400).json({ error: 'All fields are required' });
-        }
-
-        const newCharacter = await Character.create({
-            name,
-            characterClass,
-            level: level || 1,
-            race,
-            userId,
-            campaignId
-        });
-        
-        res.status(201).json(newCharacter);
-    } catch (error) {
-        console.error('Error creating character:', error);
-        res.status(500).json({ error: 'Failed to create character' });
-    }
-});
-
-// PUT /api/characters/:id - Update existing character (NOTE: requireDM and function to only allow User who created the character to update it to be added)
-app.put('/api/characters/:id', async (req, res) => {
-    try {
-        const { name, characterClass, level, race } = req.body;
-        const userId = req.session.userId;
-        
-        const [updatedRowsCount] = await Character.update(
-            { name, characterClass, level, race, userId },
-            { where: { id: req.params.id } }
-        );
-        
-        if (updatedRowsCount === 0) {
-            return res.status(404).json({ error: 'Character not found' });
-        }
-        
-        const updatedCharacter = await Character.findByPk(req.params.id);
-        res.json(updatedCharacter);
-    } catch (error) {
-        console.error('Error updating character:', error);
-        res.status(500).json({ error: 'Failed to update character' });
-    }
-});
-
-// DELETE /api/characters/:id - Delete character (NOTE: requireDM and function to allow User who created the character to delete it to be added)
-app.delete('/api/characters/:id', async (req, res) => {
-    try {
-        const deletedRowsCount = await Character.destroy({
-        where: { id: req.params.id }
-        });
-        
-        if (deletedRowsCount === 0) {
-            return res.status(404).json({ error: 'Character not found' });
-        }
-        
-        res.json({ message: 'Character deleted successfully' });
-    } catch (error) {
-        console.error('Error deleting character:', error);
-        res.status(500).json({ error: 'Failed to delete character' });
-    }
-});
-
-// === SESSION ROUTES ===
-
-// GET /api/sessions - Get all sessions
-app.get('/api/sessions', async (req, res) => {
-    try {
-        const sessions = await Session.findAll();
-        res.json(sessions);
-    } catch (error) {
-        console.error('Error fetching sessions:', error);
-        res.status(500).json({ error: 'Failed to fetch sessions' });
-    }
-});
-
-// GET /api/sessions/:id - Get session by ID
-app.get('/api/sessions/:id', async (req, res) => {
-    try {
-        const session = await Session.findByPk(req.params.id);
-        
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
-        
-        res.json(session);
-    } catch (error) {
-        console.error('Error fetching session:', error);
-        res.status(500).json({ error: 'Failed to fetch session' });
-    }
-});
-
-// POST /api/sessions - Create new session (NOTE: requireDM to be added)
-app.post('/api/sessions', async (req, res) => {
-    try {
-        const { date, summary, campaignId } = req.body;
-        
-        if (!date || !summary || !campaignId) {
-            return res.status(400).json({ error: 'All fields are required' });
-        }
-
-        const newSession = await Session.create({
-            date,
-            summary,
-            campaignId,
-        });
-        
-        res.status(201).json(newSession);
-    } catch (error) {
-        console.error('Error creating session:', error);
-        res.status(500).json({ error: 'Failed to create session' });
-    }
-});
-
-// PUT /api/sessions/:id - Update existing session (NOTE: requireDM to be added)
-app.put('/api/sessions/:id', async (req, res) => {
-    try {
-        const { date, summary } = req.body;
-        
-        const [updatedRowsCount] = await Session.update(
-            { date, summary },
-            { where: { id: req.params.id } }
-        );
-        
-        if (updatedRowsCount === 0) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
-        
-        const updatedSession = await Session.findByPk(req.params.id);
-        res.json(updatedSession);
-    } catch (error) {
-        console.error('Error updating session:', error);
-        res.status(500).json({ error: 'Failed to update session' });
-    }
-});
-
-// DELETE /api/sessions/:id - Delete session (NOTE: requireDM to be added)
-app.delete('/api/sessions/:id', async (req, res) => {
-    try {
-        const deletedRowsCount = await Session.destroy({
-        where: { id: req.params.id }
-        });
-        
-        if (deletedRowsCount === 0) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
-        
-        res.json({ message: 'Session deleted successfully' });
-    } catch (error) {
-        console.error('Error deleting session:', error);
-        res.status(500).json({ error: 'Failed to delete session' });
-    }
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    });
 });
 
 // === START SERVER ===

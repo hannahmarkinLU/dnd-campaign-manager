@@ -67,10 +67,9 @@ const Character = db.define('Character', {
         type: DataTypes.STRING,
         allowNull: false
     },
-    characterClass: {
+    class: {
         type: DataTypes.STRING,
         allowNull: false,
-        field: 'class' // Keeps the column name 'class' in the DB
     },
     level: {
         type: DataTypes.INTEGER,
@@ -115,7 +114,7 @@ Character.belongsTo(Campaign, { foreignKey: 'campaignId', as: 'campaign' });
 Session.belongsTo(Campaign, { foreignKey: 'campaignId', as: 'campaign' });
 
 // Export for use in other files
-module.exports = { db, Campaign, User, Character, Session };
+module.exports = { db, Campaign, User, Character, Session, CampaignPlayer };
 
 // Create database and tables
 async function setupDatabase() {
