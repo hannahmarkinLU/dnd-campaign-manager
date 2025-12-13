@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const { db } = require('./database/setup');
+const { db, Campaign, User, Character, Session, CampaignPlayer } = require('./database/setup');
 const cors = require('cors');
 const { requireAuth, requireRole } = require('./middleware/auth');
 
@@ -20,23 +20,55 @@ app.use(express.json());
 app.use(cors());
 
 // Test database connection and sync
+// In server.js
 async function initializeDatabase() {
     try {
         await db.authenticate();
         console.log('Connection to database established successfully.');
         
-        // Sync database without forcing (to preserve data)
         const forceSync = process.env.FORCE_SYNC === 'true';
+        const shouldSeed = process.env.SEED_DATABASE === 'true';
+        
         if (process.env.NODE_ENV !== "test") {
-          await db.sync({ force: false });
-          console.log("Database synchronized. Force sync: false");
+            await db.sync({ force: forceSync });
+            console.log("Database synchronized. Force sync: " + forceSync);
         }
+        
+        // Seed based on environment variable
+        if (shouldSeed) {
+            console.log('SEED_DATABASE is true, running seeds...');
+            const { seedDatabase } = require('./database/seed');
+            await seedDatabase();
+        } else {
+            // Seed only if empty
+            const userCount = await User.count();
+            if (userCount === 0) {
+                console.log('Database is empty, seeding with default data...');
+                const { seedDatabase } = require('./database/seed');
+                await seedDatabase();
+            }
+        }
+        
     } catch (error) {
         console.error('Unable to connect to the database:', error);
-        process.exit(1); // Exit if database connection fails
+        process.exit(1);
     }
 }
 initializeDatabase();
+
+// Add this before your routes
+app.get('/debug-imports', (req, res) => {
+    const setup = require('./database/setup');
+    res.json({
+        importedKeys: Object.keys(setup),
+        hasUser: 'User' in setup,
+        hasDb: 'db' in setup,
+        moduleContents: Object.keys(setup).reduce((acc, key) => {
+            acc[key] = typeof setup[key];
+            return acc;
+        }, {})
+    });
+});
 
 // === ROUTES ===
 
@@ -95,6 +127,32 @@ app.get('/', (req, res) => {
       deleteSession: 'DELETE /api/sessions/:id'
     }
   });
+});
+
+app.get('/test-db', async (req, res) => {
+    try {
+        // Try to create and read data
+        const testUser = await User.create({
+            username: `test_${Date.now()}`,
+            password: 'test',
+            role: 'player'
+        });
+        
+        const allUsers = await User.findAll();
+        
+        res.json({
+            success: true,
+            testUser: testUser,
+            allUsers: allUsers,
+            userCount: allUsers.length
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: error.stack
+        });
+    }
 });
 
 // === ERROR HANDLING ===

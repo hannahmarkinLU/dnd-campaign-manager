@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { Campaign } = require("../database/setup");
+const { db, Campaign } = require("../database/setup");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const { isCampaignDM } = require("../middleware/authHelper");
 const { createCampaignValidator, updateCampaignValidator } = require("../validators/campaignValidators");
@@ -47,7 +47,7 @@ router.put("/:id", requireAuth, updateCampaignValidator, validate, async (req, r
         if (campaign === null)
             return res.status(404).json({ error: "Campaign not found" });
         if (campaign === false)
-            return res.status(403).json({ error: "Not authorized" });
+            return res.status(403).json({ error: "You are not authorized to edit this campaign" });
 
         await campaign.update(req.body);
         res.json(campaign);
@@ -59,11 +59,11 @@ router.put("/:id", requireAuth, updateCampaignValidator, validate, async (req, r
 // DELETE campaign - only DM of this campaign
 router.delete("/:id", requireAuth, async (req, res, next) => {
     try {
-        const campaign = await isCampaignDM(req.user.id, req.params.id); // Now returns campaign or false/null
+        const campaign = await isCampaignDM(req.user.id, req.params.id);
         if (campaign === null)
             return res.status(404).json({ error: "Campaign not found" });
         if (campaign === false)
-            return res.status(403).json({ error: "Not authorized" });
+            return res.status(403).json({ error: "You are not authorized to delete this campaign" });
 
         await campaign.destroy();
         res.json({ message: "Campaign deleted successfully" });

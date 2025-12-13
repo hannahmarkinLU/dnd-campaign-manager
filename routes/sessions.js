@@ -46,7 +46,7 @@ router.post(
                 return res.status(404).json({ error: "Campaign not found" });
 
             if (check === false)
-                return res.status(403).json({ error: "Not authorized" });
+                return res.status(403).json({ error: "You are not authorized to create sessions for this campaign" });
 
             const newSession = await Session.create(req.body);
             res.status(201).json(newSession);
@@ -65,7 +65,7 @@ router.put("/:id", requireAuth, updateSessionValidator, validate, async (req, re
       return res.status(404).json({ error: "Session not found" });
 
     if (check === false)
-      return res.status(403).json({ error: "Not authorized" });
+      return res.status(403).json({ error: "You are not authorized to update sessions for this campaign" });
 
     await check.update(req.body);
     res.json(check);
@@ -83,7 +83,7 @@ router.delete("/:id", requireAuth, async (req, res, next) => {
       return res.status(404).json({ error: "Session not found" });
 
     if (check === false)
-      return res.status(403).json({ error: "Not authorized" });
+      return res.status(403).json({ error: "You are not authorized to delete sessions for this campaign" });
 
     await check.destroy();
     res.json({ message: "Session deleted" });

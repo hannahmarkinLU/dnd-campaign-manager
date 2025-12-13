@@ -45,7 +45,7 @@ router.put("/:id", requireAuth, updateCharacterValidator, validate, async (req, 
     try {
         const check = await canEditCharacter(req.user, req.params.id);
         if (check === null) return res.status(404).json({ error: "Character not found" });
-        if (check === false) return res.status(403).json({ error: "Not authorized" });
+        if (check === false) return res.status(403).json({ error: "You are not authorized to edit this character" });
 
         await check.update(req.body);
         res.json(check);
@@ -61,7 +61,7 @@ router.delete("/:id", requireAuth, async (req, res, next) => {
         if (check === null)
             return res.status(404).json({ error: "Character not found" });
         if (check === false)
-            return res.status(403).json({ error: "Not authorized" });
+            return res.status(403).json({ error: "You are not authorized to delete this character" });
 
         await check.destroy();
         res.json({ message: "Character deleted" });

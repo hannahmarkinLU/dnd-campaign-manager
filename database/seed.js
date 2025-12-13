@@ -1,4 +1,3 @@
-// seed.js
 const { db, User, Campaign, Character, Session } = require('./setup');
 const bcrypt = require('bcryptjs');
 
@@ -52,7 +51,7 @@ async function seedDatabase() {
     const characters = [
       {
         name: 'Elara Moonwhisper',
-        characterClass: 'Ranger',
+        class: 'Ranger',
         level: 3,
         race: 'Elf',
         userId: createdUsers[1].id,
@@ -60,7 +59,7 @@ async function seedDatabase() {
       },
       {
         name: 'Thorin Stonefist',
-        characterClass: 'Cleric',
+        class: 'Cleric',
         level: 4,
         race: 'Dwarf',
         userId: createdUsers[2].id,
@@ -86,11 +85,25 @@ async function seedDatabase() {
     await Session.bulkCreate(sessions);
     console.log('Sample sessions inserted.');
 
-    await db.close();
     console.log('Database seeding completed successfully.');
+    
+    return true;
   } catch (error) {
     console.error('Error seeding database:', error);
+    throw error;
   }
 }
 
-seedDatabase();
+// Only run if executed directly
+if (require.main === module) {
+  seedDatabase().then(() => {
+    console.log('Seed script completed.');
+    process.exit(0);
+  }).catch(error => {
+    console.error('Seed script failed:', error);
+    process.exit(1);
+  });
+}
+
+// Export for use in other files
+module.exports = { seedDatabase };

@@ -43,7 +43,6 @@ router.post('/register', registerValidator, validate, async (req, res) => {
   }
 });
 
-
 // POST /api/login
 router.post('/login', loginValidator, validate, async (req, res) => {
   try {
